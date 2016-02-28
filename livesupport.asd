@@ -1,10 +1,9 @@
 ;;;; livesupport.asd
 
 (asdf:defsystem #:livesupport
-  :description "Describe livesupport here"
-  :author "Your Name <your.name@example.com>"
-  :license "Specify license here"
+  :description "Some helpers that make livecoding with slime/sly a little easier"
+  :author "Chris Bagley (Baggers) <techsnuffle@gmail.com>"
+  :license "BSD 2 Clause"
   :serial t
   :components ((:file "package")
                (:file "livesupport")))
-
