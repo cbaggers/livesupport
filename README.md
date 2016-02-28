@@ -7,7 +7,7 @@ Exposes:
 
 # #'update-repl-link
 
-Call this function to get swank to handle requests. Put this in your main game/demo/etc loop to keep the repl live whist your code runs.
+Call this function to get the server to handle requests. Put this in your main game/demo/etc loop to keep the repl live whist your code runs.
 
 # #'peek
 
