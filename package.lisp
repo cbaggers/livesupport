@@ -2,4 +2,4 @@
 
 (defpackage #:livesupport
   (:use #:cl)
-  (:export :update-repl-link :peek))
+  (:export :update-repl-link :peek :continuable))
