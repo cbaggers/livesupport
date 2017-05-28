@@ -8,27 +8,31 @@
        (progn ,@body)
      (continue () :report "Livesupport: Continue")))
 
-(let (peek
-      pump
-      connection)
-  ;;
-  (defun init ()
-    (let* ((swank (find-package :swank))
-	   (slynk (find-package :slynk))
-	   (impl (or swank slynk)))
-      (setf connection (or (symbol-value (intern "*EMACS-CONNECTION*" impl))
-			   (funcall (symbol-function
-				     (intern "DEFAULT-CONNECTION" impl))))
-	    pump (symbol-function (intern "HANDLE-REQUESTS" impl))
-	    peek (symbol-function (intern "INSPECT-IN-EMACS" impl)))))
-  ;;
-  (defun update-repl-link ()
-    "Called from within the main loop, this keep the lisp repl
+(macrolet
+    ((impl ()
+       (let ((impl (or (and (find-package :swank) :swank)
+                       (and (find-package :slynk) :slynk))))
+         (if impl
+             `(progn
+                ;;
+                (defun update-repl-link ()
+                  "Called from within the main loop, this keep the lisp repl
      working while cepl runs"
-    (continuable
-      (unless connection (init))
-      (when connection (funcall pump connection t))))
-  ;;
-  (defun peek (x)
-    (unless peek (init))
-    (funcall peek x)))
+                  (let ((connection (or ,(intern "*EMACS-CONNECTION*" impl)
+                                        (,(intern "DEFAULT-CONNECTION" impl)))))
+                    (continuable
+                      (when connection
+                        (,(intern "HANDLE-REQUESTS" impl) connection t)))))
+                ;;
+                (defun peek (x)
+                  (,(intern "INSPECT-IN-EMACS" impl) x)))
+             `(progn
+                ;;
+                (defun update-repl-link ()
+                  "Usually, when called from within the main loop, this keep the lisp repl
+     working while cepl runs, however this is a no-op as neither
+     swank nor slynk were detected"
+                  (values))
+                ;;
+                (defun peek (x) x))))))
+  (impl))
