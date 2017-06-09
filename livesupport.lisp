@@ -56,16 +56,17 @@
                   (let ((connection (get-server-connection))
                         (repl-thread (,(intern "CURRENT-THREAD" impl)))
                         (main-thread (find-initial-thread)))
-                    (setf (,(intern "MCONN.REPL-THREAD" impl) connection)
-                          main-thread)
-                    (,(intern "INTERRUPT-THREAD" impl)
-                     main-thread
-                     (lambda ()
-                       (,(intern "KILL-THREAD" impl) repl-thread)
-                       (,(intern "WITH-BINDINGS" impl)
-                         ,(intern "*DEFAULT-WORKER-THREAD-BINDINGS*" impl)
-                         (,(intern "HANDLE-REQUESTS" impl) connection))))))
-                )
+                    (unless (eq repl-thread main-thread)
+                      (setf (,(intern "MCONN.REPL-THREAD" impl) connection)
+                            main-thread)
+                      (,(intern "INTERRUPT-THREAD" impl)
+                        main-thread
+                        (lambda ()
+                          (,(intern "KILL-THREAD" impl) repl-thread)
+                          (,(intern "WITH-BINDINGS" impl)
+                            ,(intern "*DEFAULT-WORKER-THREAD-BINDINGS*" impl)
+                            (,(intern "HANDLE-REQUESTS" impl) connection)))))
+                    main-thread)))
              `(progn
                 (defun get-server-connection () nil)
                 ;;
