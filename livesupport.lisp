@@ -1,5 +1,9 @@
 (in-package #:livesupport)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defvar *impl* (or (and (find-package :swank) :swank)
+                     (and (find-package :slynk) :slynk))))
+
 (defun %find-initial-thread ()
   (or
    #+sbcl (sb-thread:main-thread)
@@ -23,63 +27,69 @@
        (progn ,@body)
      (continue () :report "Livesupport: Continue")))
 
+(defmacro call (name &rest args)
+  `(,(intern (symbol-name name) *impl*) ,@args))
+
+(defmacro var (name)
+  (intern (symbol-name name) *impl*))
+
 (macrolet
     ((impl ()
-       (let ((impl (or (and (find-package :swank) :swank)
-                       (and (find-package :slynk) :slynk))))
-         (if impl
-             `(progn
-                ;;
-                (defun get-server-connection ()
-                  (or ,(intern "*EMACS-CONNECTION*" impl)
-                      (,(intern "DEFAULT-CONNECTION" impl))))
-                ;;
-                (defun update-repl-link ()
-                  "Called from within the main loop, this keep the lisp repl
+       (if *impl*
+           `(progn
+              ;;
+              (defun get-server-connection ()
+                (or (var *emacs-connection*)
+                    (call default-connection)))
+              ;;
+              (defun update-repl-link ()
+                "Called from within the main loop, this keep the lisp repl
      working while cepl runs"
-                  (let ((connection (get-server-connection)))
-                    (continuable
-                      (when connection
-                        (,(intern "HANDLE-REQUESTS" impl) connection t)))))
-                ;;
-                (defun peek (x)
-                  (,(intern "INSPECT-IN-EMACS" impl) x))
-                ;;
-                (defun find-initial-thread ()
-                  (or (%find-initial-thread)
-                      (let ((connection (get-server-connection)))
-                        (when (,(intern "SINGLETHREADED-CONNECTION-P" impl)
-                                connection)
-                          (,(intern "CURRENT-THREAD" impl))))))
-                ;;
-                (defun move-repl-thread-to-initial-thread ()
-                  (let ((connection (get-server-connection))
-                        (repl-thread (,(intern "CURRENT-THREAD" impl)))
-                        (main-thread (find-initial-thread)))
-                    (setf (,(intern "MCONN.REPL-THREAD" impl) connection)
-                          main-thread)
-                    (,(intern "INTERRUPT-THREAD" impl)
-                     main-thread
-                     (lambda ()
-                       (,(intern "KILL-THREAD" impl) repl-thread)
-                       (,(intern "WITH-BINDINGS" impl)
-                         ,(intern "*DEFAULT-WORKER-THREAD-BINDINGS*" impl)
-                         (,(intern "HANDLE-REQUESTS" impl) connection))))))
-                )
-             `(progn
-                (defun get-server-connection () nil)
-                ;;
-                (defun update-repl-link ()
-                  "Usually, when called from within the main loop, this keep the lisp repl
+                (let ((connection (get-server-connection)))
+                  (continuable
+                    (when connection
+                      (call handle-requests connection t)))))
+              ;;
+              (defun peek (x)
+                (call inspect-in-emacs x))
+              ;;
+              (defun find-initial-thread ()
+                (or (%find-initial-thread)
+                    (let ((connection (get-server-connection)))
+                      (when (call singlethreaded-connection-p connection)
+                        (call current-thread)))))
+              ;;
+              (defun move-repl-thread-to-initial-thread ()
+                (let ((connection (get-server-connection))
+                      (main-thread (find-initial-thread)))
+                  (if (and connection main-thread)
+                      (let ((repl-thread
+                             (call mconn.repl-thread connection)))
+                        (setf (call mconn.repl-thread connection)
+                              main-thread)
+                        (call interrupt-thread
+                              main-thread
+                              (lambda ()
+                                (call kill-thread repl-thread)
+                                (call with-bindings
+                                      (var *default-worker-thread-bindings*)
+                                      (call handle-requests connection))))
+                        main-thread)
+                      nil))))
+           `(progn
+              (defun get-server-connection () nil)
+              ;;
+              (defun update-repl-link ()
+                "Usually, when called from within the main loop, this keep the lisp repl
      working while cepl runs, however this is a no-op as neither
      swank nor slynk were detected"
-                  (values))
-                ;;
-                (defun peek (x) x)
-                ;;
-                (defun find-initial-thread ()
-                  (%find-initial-thread))
-                ;;
-                (defun move-repl-thread-to-initial-thread ()
-                  (error "Swank/Slynk are not loaded in this image")))))))
+                (values))
+              ;;
+              (defun peek (x) x)
+              ;;
+              (defun find-initial-thread ()
+                (%find-initial-thread))
+              ;;
+              (defun move-repl-thread-to-initial-thread ()
+                (error "Swank/Slynk are not loaded in this image"))))))
   (impl))
