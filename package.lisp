@@ -2,7 +2,8 @@
 
 (defpackage #:livesupport
   (:use #:cl)
-  (:export :update-repl-link
+  (:export :reset-livecoding
+           :update-repl-link
            :peek
            :continuable
            :find-initial-thread
