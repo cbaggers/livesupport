@@ -3,6 +3,7 @@
 (defpackage #:livesupport
   (:use #:cl)
   (:export :reset-livecoding
+           :setup-lisp-repl
            :update-repl-link
            :peek
            :continuable
