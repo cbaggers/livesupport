@@ -23,68 +23,66 @@
        (progn ,@body)
      (continue () :report "Livesupport: Continue")))
 
-(macrolet
-    ((impl ()
-       (let ((impl (or (and (find-package :swank) :swank)
-                       (and (find-package :slynk) :slynk))))
-         (if impl
-             `(progn
-                ;;
-                (defun get-server-connection ()
-                  (or ,(intern "*EMACS-CONNECTION*" impl)
-                      (,(intern "DEFAULT-CONNECTION" impl))))
-                ;;
-                (defun update-repl-link ()
-                  "Called from within the main loop, this keep the lisp repl
-     working while cepl runs"
-                  (let ((connection (get-server-connection)))
-                    (continuable
-                      (when connection
-                        (,(intern "HANDLE-REQUESTS" impl) connection t)))))
-                ;;
-                (defun peek (x)
-                  (,(intern "INSPECT-IN-EMACS" impl) x))
-                ;;
-                (defun find-initial-thread ()
-                  (or (%find-initial-thread)
-                      (let ((connection (get-server-connection)))
-                        (when (,(intern "SINGLETHREADED-CONNECTION-P" impl)
-                                connection)
-                          (,(intern "CURRENT-THREAD" impl))))))
-                ;;
-                ,(if (eq impl :swank)
-                     `(defun move-repl-thread-to-initial-thread ()
-                        (let ((connection (get-server-connection))
-                              (repl-thread (,(intern "CURRENT-THREAD" impl)))
-                              (main-thread (find-initial-thread)))
-                          (unless (eq repl-thread main-thread)
-                            (setf (,(intern "MCONN.REPL-THREAD" impl) connection)
-                                  main-thread)
-                            (,(intern "INTERRUPT-THREAD" impl)
-                              main-thread
-                              (lambda ()
-                                (,(intern "KILL-THREAD" impl) repl-thread)
-                                (,(intern "WITH-BINDINGS" impl)
-                                  ,(intern "*DEFAULT-WORKER-THREAD-BINDINGS*" impl)
-                                  (,(intern "HANDLE-REQUESTS" impl) connection)))))
-                          main-thread))
-                     `(defun move-repl-thread-to-initial-thread ()
-                        (print "Sorry, this function is not yet supported on Sly")
-                        nil)))
-             `(progn
-                (defun get-server-connection () nil)
-                ;;
-                (defun update-repl-link ()
-                  "Usually, when called from within the main loop, this keep the lisp repl
-     working while cepl runs, however this is a no-op as neither
-     swank nor slynk were detected"
-                  (values))
-                ;;
-                (defun peek (x) x)
-                ;;
-                (defun find-initial-thread ()
-                  (%find-initial-thread))
-                ;;
-                (defun move-repl-thread-to-initial-thread ()
-                  (error "Swank/Slynk are not loaded in this image")))))))
-  (impl))
+
+(defun reset-livecoding (&optional (repl-backend (find-if #'find-package '(:slynk :swank))))
+  (check-type repl-backend (or null (member :slynk :swank)))
+  (cond
+    (repl-backend
+     (compile 'get-server-connection
+              `(lambda () (or ,(intern "*EMACS-CONNECTION*" repl-backend)
+                              (,(intern "DEFAULT-CONNECTION" repl-backend)))))
+     (compile 'setup-lisp-repl
+              (case repl-backend
+                (:slynk
+                 `(lambda ()
+                    (let ((repl (find (,(intern "CURRENT-THREAD" repl-backend))
+                                      (,(intern "CHANNELS" repl-backend))
+                                      :key #',(intern "CHANNEL-THREAD" repl-backend))))
+                      (when repl
+                        (,(intern "SEND-PROMPT" "SLYNK-MREPL") repl)))))
+                (otherwise (lambda () (values)))))
+
+     (compile 'update-repl-link
+              `(lambda ()
+                 (let ((repl (get-server-connection)))
+                   (continuable
+                     (when repl
+                       (,(intern "HANDLE-REQUESTS" repl-backend)
+                        repl t))))))
+     (compile 'peek `(lambda (x) (,(intern "INSPECT-IN-EMACS" repl-backend) x)))
+     (compile 'find-initial-thread
+              `(lambda ()
+                 (or (%find-initial-thread)
+                     (let ((connection (get-server-connection)))
+                       (when (,(intern "SINGLETHREADED-CONNECTION-P" repl-backend)
+                              connection)
+                         (,(intern "CURRENT-THREAD" repl-backend)))))))
+     (compile 'move-repl-thread-to-initial-thread
+              (case repl-backend
+                (:swank
+                 `(lambda ()
+                    (let ((connection (get-server-connection))
+                          (repl-thread (,(intern "CURRENT-THREAD" repl-backend)))
+                          (main-thread (find-initial-thread)))
+                      (unless (eq repl-thread main-thread)
+                        (setf (,(intern "MCONN.REPL-THREAD" repl-backend) connection)
+                              main-thread)
+                        (,(intern "INTERRUPT-THREAD" repl-backend)
+                         main-thread
+                         (lambda ()
+                           (,(intern "KILL-THREAD" repl-backend) repl-thread)
+                           (,(intern "WITH-BINDINGS" repl-backend)
+                            ,(intern "*DEFAULT-WORKER-THREAD-BINDINGS*" repl-backend)
+                            (,(intern "HANDLE-REQUESTS" repl-backend) connection)))))
+                      main-thread)))
+                (otherwise `(lambda () (print "Sorry, this function is not yet supported on Sly"))))))
+    (t
+     (setf (fdefinition 'get-server-connection) (lambda () (values)))
+     (setf (fdefinition 'setup-lisp-repl) (lambda () (values)))
+     (setf (fdefinition 'update-lisp-repl) (lambda () (values)))
+     (setf (fdefinition 'peek) (lambda () (values)))
+     (setf (fdefinition 'find-initial-thread) #'%find-initial-thread)
+     (setf (fdefinition 'move-repl-thread-to-initial-thread) (lambda () (error "Swank not selected as backend")))))
+  repl-backend)
+
+(reset-livecoding)
