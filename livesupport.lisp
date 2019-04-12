@@ -79,7 +79,7 @@
     (t
      (setf (fdefinition 'get-server-connection) (lambda () (values)))
      (setf (fdefinition 'setup-lisp-repl) (lambda () (values)))
-     (setf (fdefinition 'update-lisp-repl) (lambda () (values)))
+     (setf (fdefinition 'update-repl-link) (lambda () (values)))
      (setf (fdefinition 'peek) (lambda () (values)))
      (setf (fdefinition 'find-initial-thread) #'%find-initial-thread)
      (setf (fdefinition 'move-repl-thread-to-initial-thread) (lambda () (error "Swank not selected as backend")))))
