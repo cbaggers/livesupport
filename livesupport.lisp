@@ -35,11 +35,13 @@
               (case repl-backend
                 (:slynk
                  `(lambda ()
-                    (let ((repl (find (,(intern "CURRENT-THREAD" repl-backend))
-                                      (,(intern "CHANNELS" repl-backend))
-                                      :key #',(intern "CHANNEL-THREAD" repl-backend))))
-                      (when repl
-                        (,(intern "SEND-PROMPT" "SLYNK-MREPL") repl)))))
+                    ,(if (find-package "SLYNK-MREPL")
+                         `(let ((repl (find (,(intern "CURRENT-THREAD" repl-backend))
+                                            (,(intern "CHANNELS" repl-backend))
+                                            :key #',(intern "CHANNEL-THREAD" repl-backend))))
+                            (when repl
+                              (,(intern "SEND-PROMPT" "SLYNK-MREPL") repl)))
+                         `(values))))
                 (otherwise (lambda () (values)))))
 
      (compile 'update-repl-link
