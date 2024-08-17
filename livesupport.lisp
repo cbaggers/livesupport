@@ -24,8 +24,8 @@
      (continue () :report "Livesupport: Continue")))
 
 
-(defun reset-livecoding (&optional (repl-backend (find-if #'find-package '(:slynk :swank))))
-  (check-type repl-backend (or null (member :slynk :swank)))
+(defun reset-livecoding (&optional (repl-backend (find-if #'find-package '(:slynk :micros :swank))))
+  (check-type repl-backend (or null (member :slynk :micros :swank)))
   (cond
     (repl-backend
      (compile 'get-server-connection
@@ -61,7 +61,7 @@
                          (,(intern "CURRENT-THREAD" repl-backend)))))))
      (compile 'move-repl-thread-to-initial-thread
               (case repl-backend
-                (:swank
+                ((:micros :swank)
                  `(lambda ()
                     (let ((connection (get-server-connection))
                           (repl-thread (,(intern "CURRENT-THREAD" repl-backend)))
